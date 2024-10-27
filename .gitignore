@@ -4,4 +4,5 @@
 !README.md
 !.gitignore
 !build.bash
+!Cargo.toml
 ```
