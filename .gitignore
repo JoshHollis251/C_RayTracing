@@ -1,1 +1,7 @@
-/target
+#ignore everything but src/ readme and git ignore
+/*
+!src/
+!README.md
+!.gitignore
+!build.bash
+```
