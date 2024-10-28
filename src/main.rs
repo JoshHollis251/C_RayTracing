@@ -9,6 +9,7 @@ fn main() {
     }
     impl ApplicationHandler for App {
         fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
             println!("Resumed");
         }
 
