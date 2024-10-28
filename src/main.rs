@@ -13,6 +13,8 @@ struct Line {
 static MAGIC_NUMBER: i32 = 30;
 
 fn main() {
+    let unused_var = 42; // removes the unused variable warning on build
+    
     println!("Hello World!");
     println!("I'm a Rustacean!"); //cringe
     for i in 0..10 {
