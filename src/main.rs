@@ -13,18 +13,16 @@ fn main() {
             println!("Resumed");
         }
 
-        fn window_event(
-                &mut self,
-                event_loop: &ActiveEventLoop,
-                window_id: WindowId,
-                event: WindowEvent,
-            ) {
+        #[allow(unused_variables)]
+        fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent,) {
             match event {
                 WindowEvent::CloseRequested => {
                     println!("Close requested");
                     event_loop.exit();
                 },
                 WindowEvent::RedrawRequested => {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    self.window.as_ref().unwrap().request_redraw();
                     println!("Redraw requested");
                 }
                 _ => {}
@@ -36,6 +34,4 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::default();
     let _ = event_loop.run_app(&mut app);
-    
-
 }
