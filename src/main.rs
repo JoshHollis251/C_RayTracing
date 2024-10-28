@@ -1,7 +1,7 @@
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowId,};
 fn main() {
     #[derive(Default)]
     struct App {
@@ -9,7 +9,10 @@ fn main() {
     }
     impl ApplicationHandler for App {
         fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            //build window 
+
             self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
+            
             println!("Resumed");
         }
 
@@ -31,7 +34,7 @@ fn main() {
     }
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
     let mut app = App::default();
     let _ = event_loop.run_app(&mut app);
 }
