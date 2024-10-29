@@ -1,6 +1,7 @@
 #ignore everything but src/ readme and git ignore
 /*
 !src/
+!assets/
 !README.md
 !.gitignore
 !build.bash
