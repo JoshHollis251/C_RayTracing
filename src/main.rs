@@ -38,6 +38,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) { //sprites ren
         },
         ObjectType::Player,
     ));
+    commands.spawn((TextBundle::from_section(
+        "WASD to move, Space to declare yourself",
+        TextStyle {
+            font: asset_server.load("font/sponge.otf"),
+            font_size: 40.0,
+            color: Color::WHITE,
+            ..default()
+        }
+    )).with_text_justify(JustifyText::Center));
 }
 
 static MOVE_SPEED: f32 = 5.;
@@ -46,7 +55,7 @@ fn control(mut query: Query<(&mut ObjectType, &mut Transform)>, //fetches object
     input: Res<ButtonInput<KeyCode>>, 
     asset_server: Res<AssetServer>, //loads audio
     mut commands: Commands) { //enables spawns
-    for (mut object_type, mut transform) in query.iter_mut() {
+    for (object_type, mut transform) in query.iter_mut() {
         if *object_type == ObjectType::Player {
             if input.pressed(KeyCode::KeyW) {
                 transform.translation.y += MOVE_SPEED;
