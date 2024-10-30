@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
+use super::gravity::HasGravity;
+use super::rigidbody::RigidBody;
 
 #[derive(Component)]
 struct Player;
@@ -28,6 +30,7 @@ fn init_player(
 ) {
     commands.spawn((
         Player,
+        RigidBody::default(),
         SpatialBundle::default()
     ))
         .with_children(|parent| {
@@ -38,6 +41,7 @@ fn init_player(
                 ..default()
             });
             parent.spawn( Camera3dBundle::default()); // camera
+            parent.spawn( PointLightBundle::default()); // light
         });
     focus.focused = true;
 }
@@ -49,7 +53,7 @@ static MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.1;
 
 fn control_player_view (
     mut camera: Query<&mut Transform, (With<Camera>, Without<Player>)>, //fcking ridiculous
-    mut player: Query<&mut Transform, (With<Player>, Without<Camera>)>,
+    mut player: Query<(&mut Transform, &mut RigidBody), (With<Player>, Without<Camera>)>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
     mut mouse: EventReader<MouseMotion>,
     mut input: ResMut<ButtonInput<KeyCode>>,
@@ -58,7 +62,7 @@ fn control_player_view (
 ) {
     // Rotate the camera
     let mut camera_transform = camera.single_mut(); 
-    let mut player_transform = player.single_mut();
+    let (mut player_transform, mut player_rigidbody) = player.single_mut();
     let mut pitch = camera_transform.rotation.to_euler(EulerRot::YXZ).1;
 
     for motion in mouse.read() {
@@ -99,11 +103,15 @@ fn control_player_view (
     }
 
     // Up and Down Movement
-    if input.pressed(KeyCode::Space) {
-        player_transform.translation += Vec3::Y * speed * time.delta_seconds();
-    }
-    if input.pressed(KeyCode::ControlLeft) {
-        player_transform.translation -= Vec3::Y * speed * time.delta_seconds();
+    // if input.pressed(KeyCode::Space) {
+    //     player_transform.translation += Vec3::Y * speed * time.delta_seconds();
+    // }
+    // if input.pressed(KeyCode::ControlLeft) {
+    //     player_transform.translation -= Vec3::Y * speed * time.delta_seconds();
+    // }
+
+    if input.just_pressed(KeyCode::Space) {
+        player_rigidbody.set_velocity_y(10.);
     }
 
     // Toggle focus on Escape
