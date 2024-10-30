@@ -14,5 +14,4 @@ fn main() {
     app.add_plugins(DefaultPlugins)
         .add_plugins((SpawnPlayerPlugin, SpawnEnvPlugin));
     app.run();
-
 }

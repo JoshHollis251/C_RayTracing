@@ -27,6 +27,7 @@ fn init_player(mut commands: Commands, mut focus : ResMut<WindowFocusState>) {
 
 static X_SENSITIVITY: f32 = 0.003;
 static Y_SENSITIVITY: f32 = 0.002;
+static MOVE_SPEED: f32 = 5.0;
 fn control_player_view (
     mut query: Query<&mut Transform, With<Player>>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
@@ -46,6 +47,7 @@ fn control_player_view (
 
     // Move the player
     let mut direction = Vec3::ZERO;
+    let mut speed = MOVE_SPEED;
     if input.pressed(KeyCode::KeyW) {
         direction -= Vec3::Z;
     }
@@ -58,15 +60,18 @@ fn control_player_view (
     if input.pressed(KeyCode::KeyD) {
         direction += Vec3::X;
     }
+    if input.pressed(KeyCode::ShiftLeft) {
+        speed *= 2.0;
+    }
     if direction.length() > 0.0 {
         direction = direction.normalize();
+        let rotation = transform.rotation;
+        let movement = rotation * direction;
+        let mut flat_movement = Vec2::new(movement.x, movement.z);
+        flat_movement = flat_movement.normalize();
+        let final_movement = Vec3::new(flat_movement.x, 0., flat_movement.y) * speed * time.delta_seconds();
+        transform.translation += final_movement;
     }
-
-    transform.translation += direction * 5.0 * time.delta_seconds();
-
-    
-
-
 
     // Toggle focus on Escape
     if input.just_pressed(KeyCode::Escape) {
