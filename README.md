@@ -4,4 +4,8 @@ sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkb
 ```
 WSL does not natively support hardware GPU and sound drivers 
 
-this will be helpful: https://bevyengine.org/examples/
+this will be helpful: 
+https://bevyengine.org/examples/ 
+
+this too: 
+https://bevy-cheatbook.github.io/
