@@ -18,6 +18,11 @@ fn build_env(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
                 transform: Transform::from_translation(Vec3::new((x as f32) * 3., -5.0, (z as f32) * 3.)),
                 ..default()
             });
+            commands.spawn( PbrBundle {
+                mesh: cube.clone(),
+                transform: Transform::from_translation(Vec3::new((x as f32) * 3., 5.0, (z as f32) * 3.)),
+                ..default()
+            });
         }
     }
 }

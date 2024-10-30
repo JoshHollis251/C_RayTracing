@@ -1,4 +1,4 @@
-#![allow(unused)] //fuck this unused shi
+#![allow(unused)]
 
 mod first_person {
     pub mod spawn_env;

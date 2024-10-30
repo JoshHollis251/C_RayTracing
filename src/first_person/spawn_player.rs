@@ -28,6 +28,8 @@ fn init_player(mut commands: Commands, mut focus : ResMut<WindowFocusState>) {
 static X_SENSITIVITY: f32 = 0.003;
 static Y_SENSITIVITY: f32 = 0.002;
 static MOVE_SPEED: f32 = 5.0;
+static MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.1;
+
 fn control_player_view (
     mut query: Query<&mut Transform, With<Player>>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
@@ -37,12 +39,17 @@ fn control_player_view (
     time: Res<Time>, 
 ) {
     // Rotate the player
-    let mut transform = query.single_mut(); //idrk what this does
+    let mut transform = query.single_mut(); 
+    let mut pitch = transform.rotation.to_euler(EulerRot::YXZ).1;
+
     for motion in mouse.read() {
         let yaw = -motion.delta.x * X_SENSITIVITY;
-        let pitch = -motion.delta.y * Y_SENSITIVITY;
+        let delta_pitch = -motion.delta.y * Y_SENSITIVITY;
+
+        pitch = (pitch + delta_pitch).clamp(-MAX_PITCH, MAX_PITCH);
+
         transform.rotate_y(yaw);
-        transform.rotate_local_x(pitch);
+        transform.rotation = Quat::from_rotation_y(transform.rotation.to_euler(EulerRot::YXZ).0) * Quat::from_rotation_x(pitch);
     }
 
     // Move the player
@@ -65,11 +72,20 @@ fn control_player_view (
     }
     if direction.length() > 0.0 {
         direction = direction.normalize();
-        let rotation = transform.rotation;
-        let movement = rotation * direction;
-        let mut flat_movement = Vec2::new(movement.x, movement.z);
-        flat_movement = flat_movement.normalize();
-        let final_movement = Vec3::new(flat_movement.x, 0., flat_movement.y) * speed * time.delta_seconds();
+        
+        // Extract the yaw rotation (rotation around the Y axis)
+        let yaw_rotation = Quat::from_rotation_y(transform.rotation.to_euler(EulerRot::YXZ).0);
+        
+        // Transform the direction by the yaw rotation
+        let movement = yaw_rotation * direction;
+        
+        // Normalize the movement direction on the X-Z plane
+        let flat_movement = Vec3::new(movement.x, 0.0, movement.z).normalize();
+        
+        // Calculate the final movement vector
+        let final_movement = flat_movement * speed * time.delta_seconds();
+        
+        // Apply the movement to the player's transform
         transform.translation += final_movement;
     }
 
@@ -87,6 +103,4 @@ fn control_player_view (
         main_window.cursor.grab_mode = CursorGrabMode::None;
         main_window.cursor.visible = true;
     }
-
-
 }
