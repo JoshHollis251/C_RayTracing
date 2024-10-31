@@ -9,3 +9,6 @@ https://bevyengine.org/examples/
 
 this too: 
 https://bevy-cheatbook.github.io/
+
+physics:
+https://rapier.rs/docs/user_guides/bevy_plugin/getting_started_bevy/

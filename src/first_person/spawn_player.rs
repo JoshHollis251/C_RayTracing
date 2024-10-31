@@ -1,11 +1,13 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
-use super::gravity::HasGravity;
-use super::rigidbody::RigidBody;
 
 #[derive(Component)]
 struct Player;
+
+#[derive(Component)]
+struct OverlayCamera;
 
 #[derive(Resource, Default)]
 struct WindowFocusState {
@@ -26,11 +28,12 @@ fn init_player(
     mut commands: Commands, 
     mut focus : ResMut<WindowFocusState>, 
     mut meshes: ResMut<Assets<Mesh>>, 
-    mut materials: ResMut<Assets<StandardMaterial>>
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut asset_server: Res<AssetServer>,
 ) {
     commands.spawn((
         Player,
-        RigidBody::default(),
+        RigidBody::Dynamic,
         SpatialBundle::default()
     ))
         .with_children(|parent| {
@@ -40,10 +43,51 @@ fn init_player(
                 transform: Transform::from_translation(Vec3::new(0.0, -3.0, 0.0)), // Position the cube at the player's feet
                 ..default()
             });
-            parent.spawn( Camera3dBundle::default()); // camera
+            parent.spawn( Camera3dBundle {
+                projection: PerspectiveProjection {
+                    fov: 90.0_f32.to_radians(),
+                    ..default()
+                }.into(),
+                ..default()
+            }); // camera
+            parent.spawn(PbrBundle { // body
+                mesh: meshes.add(Capsule3d::new(1.5, 0.5)),
+                material: materials.add(Color::srgb(0.8, 0.7, 0.6)),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)), // Position the cube at the player's feet
+                ..default()
+            });
             parent.spawn( PointLightBundle::default()); // light
-        });
+        })
+        .insert(Collider::capsule_y(1.5, 0.5))
+        .insert(LockedAxes::ROTATION_LOCKED)
+        .insert(Velocity::default());
+    
+    // commands.spawn(TextBundle::from_section("test", TextStyle {
+    //     font: asset_server.load("font/sponge.otf"),
+    //     font_size: 40.0,
+    //     color: Color::WHITE,
+    //     ..Default::default()
+    // }));
+
     focus.focused = true;
+
+    //make camera for topleft corner perspective
+    commands.spawn((
+        OverlayCamera,
+        Camera3dBundle {
+            transform: Transform::from_translation(Vec3::new(0., 0., 30.0)),
+            projection: OrthographicProjection {
+                far: 10.0,
+                ..default()
+            }.into(),
+            camera: Camera {
+                order: 1,
+                ..default()
+            },
+            ..default()
+        }
+    ));
+
 }
 
 static X_SENSITIVITY: f32 = 0.003;
@@ -52,8 +96,9 @@ static MOVE_SPEED: f32 = 5.0;
 static MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.1;
 
 fn control_player_view (
-    mut camera: Query<&mut Transform, (With<Camera>, Without<Player>)>, //fcking ridiculous
-    mut player: Query<(&mut Transform, &mut RigidBody), (With<Player>, Without<Camera>)>,
+    mut camera: Query<&mut Transform, (With<Camera>, Without<Player>, Without<OverlayCamera>)>, //fcking ridiculous
+    mut player: Query<(&mut Transform, &mut Velocity), (With<Player>, Without<Camera>)>,
+    mut text: Query<&mut Text>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
     mut mouse: EventReader<MouseMotion>,
     mut input: ResMut<ButtonInput<KeyCode>>,
@@ -62,7 +107,7 @@ fn control_player_view (
 ) {
     // Rotate the camera
     let mut camera_transform = camera.single_mut(); 
-    let (mut player_transform, mut player_rigidbody) = player.single_mut();
+    let (mut player_transform, mut player_velocity) = player.single_mut();
     let mut pitch = camera_transform.rotation.to_euler(EulerRot::YXZ).1;
 
     for motion in mouse.read() {
@@ -97,9 +142,11 @@ fn control_player_view (
         direction = direction.normalize();
         let yaw_rotation = Quat::from_rotation_y(player_transform.rotation.to_euler(EulerRot::YXZ).0);
         let movement = yaw_rotation * direction;
-        let flat_movement = Vec3::new(movement.x, 0.0, movement.z).normalize();
-        let final_movement = flat_movement * speed * time.delta_seconds();
-        player_transform.translation += final_movement;
+        let flat_movement = Vec3::new(movement.x, 0.0, movement.z).normalize() * speed;
+        let final_movement = Vec3::new(flat_movement.x, player_velocity.linvel.y, flat_movement.z);
+        player_velocity.linvel = final_movement;
+    } else {
+        player_velocity.linvel = Vec3::new(0.0, player_velocity.linvel.y, 0.0);
     }
 
     // Up and Down Movement
@@ -111,7 +158,7 @@ fn control_player_view (
     // }
 
     if input.just_pressed(KeyCode::Space) {
-        player_rigidbody.set_velocity_y(10.);
+        player_velocity.linvel.y = 5.;
     }
 
     // Toggle focus on Escape
@@ -128,4 +175,10 @@ fn control_player_view (
         main_window.cursor.grab_mode = CursorGrabMode::None;
         main_window.cursor.visible = true;
     }
+
+    //Display position info
+    // for mut text_i in text.iter_mut() {
+    //     text_i.sections[0].value = format!("Position: {:?}", player_transform.translation);
+    // }
+    
 }
