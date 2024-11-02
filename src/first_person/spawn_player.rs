@@ -1,13 +1,22 @@
+use std::thread::spawn;
+
 use bevy::prelude::*;
+use bevy::render::view::RenderLayers;
 use bevy_rapier3d::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy::animation::*;
 
 #[derive(Component)]
 struct Player;
 
 #[derive(Component)]
-struct OverlayCamera;
+struct Gun;
+
+#[derive(Component)]
+struct Bullet {
+    ttl: f32
+}
 
 #[derive(Resource, Default)]
 struct WindowFocusState {
@@ -20,74 +29,85 @@ impl Plugin for SpawnPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(WindowFocusState::default());
         app.add_systems(Startup, init_player);
-        app.add_systems(Update, control_player_view);
+        app.add_systems(Update, (control_player_view, check_gun));
     }
+}
+
+#[derive(Resource)]
+struct Animations {
+    animations: AnimationNodeIndex,
+    #[allow(dead_code)]
+    graph: Handle<AnimationGraph>,
 }
 
 fn init_player(
     mut commands: Commands, 
     mut focus : ResMut<WindowFocusState>, 
-    mut meshes: ResMut<Assets<Mesh>>, 
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let bob: Handle<Image> = asset_server.load("img/spongebob.png");
     commands.spawn((
         Player,
         RigidBody::Dynamic,
         SpatialBundle::default()
     ))
         .with_children(|parent| {
-            parent.spawn(PbrBundle { // feet
-                mesh: meshes.add(Cuboid::new(0.3, 0.3, 0.5)),
-                material: materials.add(Color::srgb(0.8, 0.7, 0.6)),
-                transform: Transform::from_translation(Vec3::new(0.0, -3.0, 0.0)), // Position the cube at the player's feet
-                ..default()
-            });
-            parent.spawn( Camera3dBundle {
-                projection: PerspectiveProjection {
-                    fov: 90.0_f32.to_radians(),
+            parent.spawn((SceneBundle {
+                    scene: asset_server.load("blueprints/player.glb#Scene0"),
+                    transform: Transform::from_scale(Vec3::new(0.2, 0.2, 0.2)) * 
+                        Transform::from_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)) * 
+                        Transform::from_translation(Vec3::new(0.0, -7., 0.0)),
+                    visibility: Visibility::Hidden,
                     ..default()
-                }.into(),
+                },
+            ));
+            parent.spawn( (Camera3dBundle {
+                    projection: PerspectiveProjection {
+                        fov: 90.0_f32.to_radians(),
+                        ..default()
+                    }.into(),
+                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                    ..default()
+                },
+            ))
+                .with_children(|subparent| {
+                    subparent.spawn((
+                        Gun,
+                        PbrBundle {
+                            mesh: meshes.add(Cuboid::new(0.5, 0.5, 0.75)),
+                            transform: Transform::from_translation(Vec3::new(1.0, -0.5, -1.0)),
+                            material: materials.add(StandardMaterial {
+                                base_color: Color::srgb(0.8, 0.7, 0.6),
+                                ..default()
+                            }),
+                            ..default()
+                        },
+                ));
+                });
+            parent.spawn( PointLightBundle {
+                transform: Transform::from_translation(Vec3::new(0.0, 6.0, 0.0)),
+                point_light: PointLight {
+                    intensity: 1000000.0,
+                    range: 10000.0,
+                    color: Color::srgb(0.8, 0.6, 1.0),
+                    ..default()
+                },
                 ..default()
-            }); // camera
-            parent.spawn(PbrBundle { // body
-                mesh: meshes.add(Capsule3d::new(1.5, 0.5)),
-                material: materials.add(Color::srgb(0.8, 0.7, 0.6)),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)), // Position the cube at the player's feet
-                ..default()
-            });
-            parent.spawn( PointLightBundle::default()); // light
+            }); // light
+
         })
-        .insert(Collider::capsule_y(1.5, 0.5))
+        .insert(Collider::capsule_y(0.75, 0.75))
         .insert(LockedAxes::ROTATION_LOCKED)
-        .insert(Velocity::default());
-    
-    // commands.spawn(TextBundle::from_section("test", TextStyle {
-    //     font: asset_server.load("font/sponge.otf"),
-    //     font_size: 40.0,
-    //     color: Color::WHITE,
-    //     ..Default::default()
-    // }));
-
-    focus.focused = true;
-
-    //make camera for topleft corner perspective
-    commands.spawn((
-        OverlayCamera,
-        Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0., 0., 30.0)),
-            projection: OrthographicProjection {
-                far: 10.0,
-                ..default()
-            }.into(),
-            camera: Camera {
-                order: 1,
-                ..default()
-            },
+        .insert(Velocity::default())
+        .insert(GravityScale(1.0))
+        .insert(Friction {
+            coefficient: 0.0,
             ..default()
-        }
-    ));
-
+        });
+    focus.focused = true;
 }
 
 static X_SENSITIVITY: f32 = 0.003;
@@ -96,8 +116,8 @@ static MOVE_SPEED: f32 = 5.0;
 static MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.1;
 
 fn control_player_view (
-    mut camera: Query<&mut Transform, (With<Camera>, Without<Player>, Without<OverlayCamera>)>, //fcking ridiculous
-    mut player: Query<(&mut Transform, &mut Velocity), (With<Player>, Without<Camera>)>,
+    mut camera: Query<&mut Transform, (With<Camera>, Without<Player>)>, //fcking ridiculous
+    mut player: Query<(&mut Transform, &mut Velocity, &mut GravityScale), (With<Player>, Without<Camera>)>,
     mut text: Query<&mut Text>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
     mut mouse: EventReader<MouseMotion>,
@@ -107,7 +127,7 @@ fn control_player_view (
 ) {
     // Rotate the camera
     let mut camera_transform = camera.single_mut(); 
-    let (mut player_transform, mut player_velocity) = player.single_mut();
+    let (mut player_transform, mut player_velocity, mut player_gravity) = player.single_mut();
     let mut pitch = camera_transform.rotation.to_euler(EulerRot::YXZ).1;
 
     for motion in mouse.read() {
@@ -158,8 +178,15 @@ fn control_player_view (
     // }
 
     if input.just_pressed(KeyCode::Space) {
-        player_velocity.linvel.y = 5.;
+        player_velocity.linvel.y = 7.;
     }
+
+    if input.pressed(KeyCode::Space) && player_velocity.linvel.y > 0.0 {
+        player_gravity.0 = 1.0;
+    } else {
+        player_gravity.0 = 2.0;
+    }
+
 
     // Toggle focus on Escape
     if input.just_pressed(KeyCode::Escape) {
@@ -175,10 +202,53 @@ fn control_player_view (
         main_window.cursor.grab_mode = CursorGrabMode::None;
         main_window.cursor.visible = true;
     }
-
-    //Display position info
-    // for mut text_i in text.iter_mut() {
-    //     text_i.sections[0].value = format!("Position: {:?}", player_transform.translation);
-    // }
     
+}
+
+fn check_gun(
+    mut commands: Commands,
+    mut gun : Query<&GlobalTransform, With<Gun>>,
+    mut player_transform: Query<&GlobalTransform, With<Camera>>,
+    mut bullets: Query<(&mut Bullet, Entity)>,
+    mut input: ResMut<ButtonInput<KeyCode>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    time: Res<Time>,
+) {
+    let player_forward = player_transform.single_mut().forward();
+    if input.pressed(KeyCode::KeyF) {
+        for gun_transform in gun.iter_mut() {
+            spawn_bullet(&mut commands, &mut meshes, gun_transform.clone(), player_forward);
+        }
+    }
+    for (mut bullet, entity) in bullets.iter_mut() {
+        bullet.ttl -= time.delta_seconds();
+        if bullet.ttl <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn spawn_bullet(
+    mut commands: &mut Commands,
+    mut meshes: &mut ResMut<Assets<Mesh>>,
+    transform: GlobalTransform,
+    direction: Dir3
+) {
+    println!("Spawning bullet at {}", transform.compute_transform().translation);
+    commands.spawn((
+        Bullet{ttl: 2.},
+        PbrBundle {
+            mesh: meshes.add(Cuboid::new(0.1, 0.1, 0.1)),
+            transform: transform.compute_transform(),
+            ..default()
+        },
+        RigidBody::Dynamic,
+        Collider::cuboid(0.1, 0.1, 0.1),
+        Velocity::linear(100. * direction),
+        GravityScale(0.25),
+        Friction {
+            coefficient: 0.0,
+            ..default()
+        }
+    ));
 }
