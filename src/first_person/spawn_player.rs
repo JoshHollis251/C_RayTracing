@@ -7,11 +7,18 @@ use bevy::input::mouse::MouseMotion;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 use bevy::animation::*;
 
+use super::load_assets::*;
+
 #[derive(Component)]
-struct Player;
+pub struct Player;
 
 #[derive(Component)]
 struct Gun;
+
+#[derive(Component)]
+struct Flash {
+    ttl: f32
+}
 
 #[derive(Component)]
 struct Bullet {
@@ -28,8 +35,14 @@ pub struct SpawnPlayerPlugin;
 impl Plugin for SpawnPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(WindowFocusState::default());
-        app.add_systems(Startup, init_player);
-        app.add_systems(Update, (control_player_view, check_gun));
+        app.add_systems(OnEnter(AssetLoadState::Ready), init_player);
+        app.add_systems(
+            Update, 
+            (
+                control_player_view,
+                check_gun
+            ).run_if(in_state(AssetLoadState::Ready))
+        );
     }
 }
 
@@ -73,26 +86,47 @@ fn init_player(
                     ..default()
                 },
             ))
-                .with_children(|subparent| {
-                    subparent.spawn((
+                .with_children(|camera_subparent| {
+                    camera_subparent.spawn((
                         Gun,
-                        PbrBundle {
-                            mesh: meshes.add(Cuboid::new(0.5, 0.5, 0.75)),
+                        SpatialBundle{
                             transform: Transform::from_translation(Vec3::new(1.0, -0.5, -1.0)),
-                            material: materials.add(StandardMaterial {
-                                base_color: Color::srgb(0.8, 0.7, 0.6),
-                                ..default()
-                            }),
                             ..default()
                         },
-                ));
+                ))
+                    .with_children(|gun_subparent| {
+                        gun_subparent.spawn(
+                            SceneBundle {
+                                scene: asset_server.load("blueprints/revolver.glb#Scene0"),
+                                transform: Transform::from_translation(Vec3::new(0., 0., 0.)) * 
+                                    Transform::from_rotation(Quat::from_rotation_y(3. * std::f32::consts::FRAC_PI_2)),
+                                ..default()
+                            },
+                        );
+                        gun_subparent.spawn((
+                            Flash{ttl: 0.1},
+                            PbrBundle {
+                                mesh: meshes.add(Cuboid::new(0.1, 0.1, 0.1)),
+                                material: materials.add(StandardMaterial {
+                                    base_color: Color::srgb(1.0, 1.0, 1.0),
+                                    unlit: true,
+                                    emissive: LinearRgba { red: (10.), green: (10.), blue: (10.), alpha: (1.) },
+                                    emissive_exposure_weight: 10.0,
+
+                                    ..default()
+                                }),
+                                transform: Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
+                                ..default()
+                            },
+                        ));
+                    });
                 });
             parent.spawn( PointLightBundle {
                 transform: Transform::from_translation(Vec3::new(0.0, 6.0, 0.0)),
                 point_light: PointLight {
                     intensity: 1000000.0,
                     range: 10000.0,
-                    color: Color::srgb(0.8, 0.6, 1.0),
+                    color: Color::srgb(1., 1., 1.),
                     ..default()
                 },
                 ..default()
@@ -116,7 +150,7 @@ static MOVE_SPEED: f32 = 5.0;
 static MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.1;
 
 fn control_player_view (
-    mut camera: Query<&mut Transform, (With<Camera>, Without<Player>)>, //fcking ridiculous
+    mut camera: Query<&mut Transform, (With<Camera>, Without<Player>)>,
     mut player: Query<(&mut Transform, &mut Velocity, &mut GravityScale), (With<Player>, Without<Camera>)>,
     mut text: Query<&mut Text>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
@@ -126,6 +160,9 @@ fn control_player_view (
     time: Res<Time>, 
 ) {
     // Rotate the camera
+    if camera.iter().count() == 0 {
+        return;
+    }
     let mut camera_transform = camera.single_mut(); 
     let (mut player_transform, mut player_velocity, mut player_gravity) = player.single_mut();
     let mut pitch = camera_transform.rotation.to_euler(EulerRot::YXZ).1;
@@ -169,14 +206,6 @@ fn control_player_view (
         player_velocity.linvel = Vec3::new(0.0, player_velocity.linvel.y, 0.0);
     }
 
-    // Up and Down Movement
-    // if input.pressed(KeyCode::Space) {
-    //     player_transform.translation += Vec3::Y * speed * time.delta_seconds();
-    // }
-    // if input.pressed(KeyCode::ControlLeft) {
-    //     player_transform.translation -= Vec3::Y * speed * time.delta_seconds();
-    // }
-
     if input.just_pressed(KeyCode::Space) {
         player_velocity.linvel.y = 7.;
     }
@@ -210,12 +239,13 @@ fn check_gun(
     mut gun : Query<&GlobalTransform, With<Gun>>,
     mut player_transform: Query<&GlobalTransform, With<Camera>>,
     mut bullets: Query<(&mut Bullet, Entity)>,
-    mut input: ResMut<ButtonInput<KeyCode>>,
+    mut flash: Query<(&mut Flash, Entity)>,
+    mut input: ResMut<ButtonInput<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
 ) {
     let player_forward = player_transform.single_mut().forward();
-    if input.pressed(KeyCode::KeyF) {
+    if input.just_pressed(MouseButton::Left) {
         for gun_transform in gun.iter_mut() {
             spawn_bullet(&mut commands, &mut meshes, gun_transform.clone(), player_forward);
         }
@@ -234,7 +264,7 @@ fn spawn_bullet(
     transform: GlobalTransform,
     direction: Dir3
 ) {
-    println!("Spawning bullet at {}", transform.compute_transform().translation);
+    // println!("Spawning bullet at {}", transform.compute_transform().translation);
     commands.spawn((
         Bullet{ttl: 2.},
         PbrBundle {

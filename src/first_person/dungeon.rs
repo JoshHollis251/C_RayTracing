@@ -1,11 +1,17 @@
+use bevy::log::tracing_subscriber::fmt::time;
 use bevy::{prelude::*, render::view::RenderLayers};
+use bevy::asset::LoadState;
 use bevy_rapier3d::prelude::*;
+use bevy_sprite3d::*;
+use super::spawn_player::Player;
+use super::load_assets::*;
 
 pub struct BuildDungeonPlugin;
 
 impl Plugin for BuildDungeonPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, build_dungeon);
+        app.add_plugins(Sprite3dPlugin);
+        app.add_systems(OnEnter(AssetLoadState::Ready), build_dungeon);
     }
 }
 
@@ -13,13 +19,13 @@ fn build_dungeon(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
+    assets: Res<LoadedAssets>,
 ) {
     let floor_mesh = meshes.add(Cuboid::new(5.0, 1.0, 5.0));
     let side_wall = meshes.add(Cuboid::new(1.0, 5.0, 5.0));
     let back_wall = meshes.add(Cuboid::new(5.0, 5.0, 1.0));
-    let grass_texture: Handle<Image> = asset_server.load("texture/Grass/Grass_07-512x512.png");
-    let wall_texture: Handle<Image> = asset_server.load("texture/Bricks/Bricks_21-512x512.png");
+    let grass_texture: Handle<Image> = assets.assets.get("grass").unwrap().clone();
+    let wall_texture: Handle<Image> = assets.assets.get("bricks").unwrap().clone();
     
     for x in -5..5 {
         for z in -5..5 {
@@ -59,4 +65,3 @@ fn build_dungeon(
         ));
     }
 }
-
